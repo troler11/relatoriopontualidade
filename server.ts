@@ -15,7 +15,7 @@ const formatarDados = (lista: any[]) => {
         "Placa": item.veiculo.placa, // Ajuste conforme os campos do seu JSON
         "Velocidade Maxima": item.velocidadeMaximaStr, // Ajuste conforme os campos do seu JSON
         "Status": item.status, // Ajuste conforme os campos do seu JSON
-        "H.P.I Previsto": item.pontoDeParadaRelatorio.horario, // Ajuste conforme os campos do seu JSON
+        "H.P.I Previsto": item.pontoDeParadaRelatorio[0].horario, // Ajuste conforme os campos do seu JSON
         "H.P.I Executado": item.status, // Ajuste conforme os campos do seu JSON
         "Passou no ponto inicial?": item.status, // Ajuste conforme os campos do seu JSON
         "H.P.F Previsto": item.status, // Ajuste conforme os campos do seu JSON
