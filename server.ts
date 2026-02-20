@@ -18,7 +18,7 @@ const formatarDados = (lista: any[]) => {
         "H.P.I Previsto": item.pontoDeParadaRelatorio[0].horario, // Ajuste conforme os campos do seu JSON
         "H.P.I Executado": item.status, // Ajuste conforme os campos do seu JSON
         "Passou no ponto inicial?": item.pontoDeParadaRelatorio[0].passou, // Ajuste conforme os campos do seu JSON
-        "H.P.F Previsto": item.pontoDeParadaRelatorio[-1].horario, // Ajuste conforme os campos do seu JSON
+        "H.P.F Previsto": item.pontoDeParadaRelatorio.length - 1.horario, // Ajuste conforme os campos do seu JSON
         "H.P.F Executado": item.status, // Ajuste conforme os campos do seu JSON
         "Passou no ponto final?": item.status, // Ajuste conforme os campos do seu JSON
         "% Pontos": item.status, // Ajuste conforme os campos do seu
