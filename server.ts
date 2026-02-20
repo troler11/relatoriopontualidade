@@ -56,4 +56,4 @@ app.get('/exportar-excel', async (req: Request, res: Response) => {
     }
 });
 
-app.listen(3000, () => console.log("Servidor rodando na porta 3000"));
+app.listen(80, () => console.log("Servidor rodando na porta 80"));
