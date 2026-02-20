@@ -9,7 +9,9 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Função opcional para deixar os nomes das colunas bonitos no Excel
 const formatarDados = (lista: any[]) => {
     return lista.map(item => ({
+        "Linha": item.linhaDescricao, // Ajuste conforme os campos do seu JSON
         "Data/Hora": item.dataHora || item.data, // Ajuste conforme os campos do seu JSON
+        "Veículo": item.veiculo.veiculo, // Ajuste conforme os campos do seu JSON
         "Veículo": item.prefixo || item.veiculo,
         "Linha": item.linha,
         "Motorista": item.motorista,
