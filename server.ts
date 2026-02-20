@@ -4,53 +4,56 @@ import * as XLSX from 'xlsx';
 import path from 'path';
 
 const app = express();
-const port = process.env.PORT || 3000;
-
-app.use(express.json());
-// Serve arquivos estáticos (seu HTML/Frontend)
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/exportar-excel', async (req: Request, res: Response) => {
     const apiUrl = "https://abmbus.com.br:8181/api/usuario/pesquisarelatorio?linhas=&empresas=3528872&dataInicial=19/2/2026&dataFinal=19/2/2026&periodo=&sentido=&agrupamentos=";
 
     try {
-        // 1. Faz a chamada para a API da ABM Bus
         const response = await axios.get(apiUrl, {
             headers: {
-                'Accept': 'application/json, text/plain, */*',
                 'Authorization': 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJtaW1vQGFibXByb3RlZ2UuY29tLmJyIiwiZXhwIjoxODcwOTkzNDM5fQ.aj4XA7WAMCpfJCGyLhWX1swG8fyLmxgBufpaJAZNeFecCp9HJbSy57FultLJs1i73axl00_tur-HFCjoZ07K9Q',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36',
                 'Origin': 'https://abmbus.com.br',
                 'Referer': 'https://abmbus.com.br/'
             }
         });
 
-        const dados = response.data;
+        const dados: any[] = response.data;
 
-        if (!dados || dados.length === 0) {
-            return res.status(404).send("Nenhum dado encontrado.");
+        // --- LÓGICA DE SEPARAÇÃO POR ABAS ---
+        // Ajuste 'item.sentido' para o nome correto do campo da sua API
+        const entradas = dados.filter(item => item.sentido === 'ENTRADA' || item.sentido === 0);
+        const saidas = dados.filter(item => item.sentido === 'SAIDA' || item.sentido === 1);
+
+        // Cria o Workbook (Livro)
+        const workbook = XLSX.utils.book_new();
+
+        // Cria a aba de Entradas
+        const worksheetEntradas = XLSX.utils.json_to_sheet(entradas);
+        XLSX.utils.book_append_sheet(workbook, worksheetEntradas, "Entradas");
+
+        // Cria a aba de Saídas
+        const worksheetSaidas = XLSX.utils.json_to_sheet(saidas);
+        XLSX.utils.book_append_sheet(workbook, worksheetSaidas, "Saídas");
+
+        // Se houver dados que não se encaixam, você pode criar uma aba "Geral"
+        if (dados.length > (entradas.length + saidas.length)) {
+             const worksheetGeral = XLSX.utils.json_to_sheet(dados);
+             XLSX.utils.book_append_sheet(workbook, worksheetGeral, "Todos os Dados");
         }
 
-        // 2. Cria o arquivo Excel em memória
-        const worksheet = XLSX.utils.json_to_sheet(dados);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Relatorio");
-
-        // 3. Escreve o buffer do arquivo
+        // Gera o buffer
         const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
-        // 4. Configura os headers para o navegador baixar o arquivo automaticamente
-        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_mimo.xlsx');
+        res.setHeader('Content-Disposition', 'attachment; filename=relatorio_mimo_separado.xlsx');
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         
         return res.send(buffer);
 
     } catch (error: any) {
-        console.error("Erro ao processar requisição:", error.message);
-        res.status(500).json({ error: "Erro ao buscar dados da API ou gerar Excel" });
+        console.error("Erro:", error.message);
+        res.status(500).send("Erro ao processar dados");
     }
 });
 
-app.listen(port, () => {
-    console.log(`Servidor rodando na porta ${port}`);
-});
+app.listen(3000, () => console.log("Servidor rodando na porta 3000"));
