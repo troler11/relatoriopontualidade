@@ -27,7 +27,7 @@ const formatarDados = (lista: any[]) => {
             "Passou no ponto inicial?": primeiroPonto.passou ? "Sim" : "Não",
             "H.P.F Previsto": ultimoPonto.horario || "N/A",
             "H.P.F Executado": item.status, // Ajustar se houver campo específico no JSON
-            "Passou no ponto final?": item.status, // Ajustar se houver campo específico no JSON
+            "Passou no ponto final?": ultimoPonto.passou ? "Sim" : "Não",
             "% Pontos": item.status, // Ajustar conforme campo real
             "Duração (minutos)": item.status, // Ajustar conforme campo real
             "Pontualidade": item.status, // Ajustar conforme campo real
