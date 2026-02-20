@@ -13,7 +13,6 @@ const formatarDados = (lista: any[]) => {
         "Data/Hora": item.dataHora || item.data, // Ajuste conforme os campos do seu JSON
         "Veículo": item.veiculo.veiculo, // Ajuste conforme os campos do seu JSON
         "Veículo": item.prefixo || item.veiculo,
-        "Linha": item.linha,
         "Motorista": item.motorista,
         "Sentido": item.sentido
     }));
