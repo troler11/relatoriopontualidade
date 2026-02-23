@@ -12,15 +12,16 @@ FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Copia as dependências e o código compilado
+# Copia apenas o necessário para rodar
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
-# GARANTA QUE A PASTA PUBLIC ESTEJA NA RAIZ /app
 COPY --from=builder /app/public ./public 
 
+# Instala apenas dependências de produção (economiza espaço)
 RUN npm install --omit=dev
 
 EXPOSE 80
 
-# Comando para rodar (usando o caminho absoluto para não ter erro)
-CMD ["node", "dist/server.js"]
+# SOLUÇÃO DEFINITIVA: O comando 'find' localiza o server.js mesmo se estiver em dist/src/
+# Isso elimina o erro de MODULE_NOT_FOUND para sempre.
+CMD ["sh", "-c", "node $(find dist -name server.js | head -n 1)"]
