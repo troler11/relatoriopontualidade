@@ -6,18 +6,15 @@ import fs from 'fs';
 
 const app = express();
 
-// --- CONFIGURAÇÃO DE CAMINHOS ---
 const caminhosPossiveis = [
-    path.join(__dirname, '..', 'public'), // No Docker
-    path.join(__dirname, 'public'),       // Local
-    path.join(process.cwd(), 'public')    // Raiz
+    path.join(__dirname, '..', 'public'),
+    path.join(__dirname, 'public'),
+    path.join(process.cwd(), 'public')
 ];
 const publicPath = caminhosPossiveis.find(p => fs.existsSync(p)) || caminhosPossiveis[0];
 
-console.log(`[Viação Mimo] Arquivos estáticos em: ${publicPath}`);
 app.use(express.static(publicPath));
 
-// --- ROTA PRINCIPAL (FRONTEND) ---
 app.get('/', (req: Request, res: Response) => {
     const indexPath = path.join(publicPath, 'index.html');
     if (fs.existsSync(indexPath)) {
@@ -27,17 +24,15 @@ app.get('/', (req: Request, res: Response) => {
     }
 });
 
-// --- ROTA DE EXPORTAÇÃO (BACKEND) ---
 app.get('/exportar-excel', async (req: Request, res: Response) => {
     const { dataInicio, dataFim } = req.query;
 
-    // Tradução de data: YYYY-MM-DD (HTML) para D/M/YYYY (API)
     const formatarData = (dStr: any) => {
         const [ano, mes, dia] = dStr.toString().split('-');
         return `${parseInt(dia)}/${parseInt(mes)}/${ano}`;
     };
 
-    const dIn = dataInicio ? formatarData(dataInicio) : "19/2/2026";
+    const dIn = dataInicio ? formatarData(dataInicio) : "23/2/2026";
     const dFi = dataFim ? formatarData(dataFim) : dIn;
 
     const apiUrl = `https://abmbus.com.br:8181/api/usuario/pesquisarelatorio?linhas=&empresas=3528872&dataInicial=${dIn}&dataFinal=${dFi}&periodo=&sentido=&agrupamentos=`;
@@ -56,14 +51,12 @@ app.get('/exportar-excel', async (req: Request, res: Response) => {
 
         const workbook = new ExcelJS.Workbook();
 
-        // Função para criar aba estilizada
         const criarAba = (nomeAba: string, filtro: string) => {
             const listaFiltrada = dados.filter(i => i.sentido === filtro);
             if (listaFiltrada.length === 0) return;
 
             const sheet = workbook.addWorksheet(nomeAba);
 
-            // Definição das Colunas e Larguras
             sheet.columns = [
                 { header: 'LINHA', key: 'linha', width: 35 },
                 { header: 'DATA/HORA', key: 'data', width: 20 },
@@ -75,7 +68,6 @@ app.get('/exportar-excel', async (req: Request, res: Response) => {
                 { header: 'MOTORISTA', key: 'moto', width: 35 }
             ];
 
-            // Inserção dos Dados
             listaFiltrada.forEach(item => {
                 const pontos = item.pontoDeParadaRelatorio || [];
                 sheet.addRow({
@@ -90,33 +82,27 @@ app.get('/exportar-excel', async (req: Request, res: Response) => {
                 });
             });
 
-            // --- ESTILIZAÇÃO DO LAYOUT ---
-            // 1. Estilo do Cabeçalho (Fundo Azul, Texto Branco, Negrito)
+            // Estilização com Tipagem Explícita para evitar erros de compilação
             const headerRow = sheet.getRow(1);
-            headerRow.eachCell((cell) => {
+            headerRow.eachCell((cell: ExcelJS.Cell) => {
                 cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 12 };
                 cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0047AB' } };
                 cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                cell.border = { bottom: { style: 'medium' } };
             });
 
-            // 2. Estilo das Linhas (Bordas e Zebra)
-            sheet.eachRow((row, rowNumber) => {
+            sheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
                 if (rowNumber > 1) {
-                    row.eachCell((cell) => {
+                    row.eachCell((cell: ExcelJS.Cell) => {
                         cell.border = {
                             top: { style: 'thin' }, left: { style: 'thin' },
                             bottom: { style: 'thin' }, right: { style: 'thin' }
                         };
-                        cell.alignment = { vertical: 'middle', horizontal: 'left' };
                     });
                     
-                    // Cores alternadas (Zebra)
                     if (rowNumber % 2 === 0) {
                         row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F2F2F2' } };
                     }
 
-                    // Formatação Condicional: Se "NÃO" passou, pinta de vermelho
                     const cellPassou = row.getCell(7);
                     if (cellPassou.value === 'NÃO') {
                         cellPassou.font = { color: { argb: 'FF0000' }, bold: true };
@@ -128,15 +114,13 @@ app.get('/exportar-excel', async (req: Request, res: Response) => {
         criarAba('ENTRADAS', 'Entrada');
         criarAba('SAÍDAS', 'Saída');
 
-        // Configuração de Resposta para Download
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=Relatorio_Mimo_${dIn.replace(/\//g, '-')}.xlsx`);
+        res.setHeader('Content-Disposition', `attachment; filename=Relatorio_Mimo.xlsx`);
 
         await workbook.xlsx.write(res);
         res.end();
 
     } catch (error: any) {
-        console.error("Erro ABM:", error.message);
         res.status(500).send("Erro ao gerar relatório.");
     }
 });
