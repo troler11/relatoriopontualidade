@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Exportador Mimo</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; padding-top: 50px; background: #f0f2f5; }
+        .box { background: white; padding: 30px; border-radius: 10px; shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: #218838; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>Gerar Relatório Excel</h2>
+        <div class="form-group">
+            <label>Data Início:</label>
+            <input type="date" id="dataInicio">
+        </div>
+        <div class="form-group">
+            <label>Data Fim:</label>
+            <input type="date" id="dataFim">
+        </div>
+        <button onclick="baixar()">Baixar Relatório</button>
+    </div>
+
+    <script>
+        // Define a data de hoje como padrão nos inputs
+        const hoje = new Date().toISOString().split('T')[0];
+        document.getElementById('dataInicio').value = hoje;
+        document.getElementById('dataFim').value = hoje;
+
+        function baixar() {
+            const inicio = document.getElementById('dataInicio').value;
+            const fim = document.getElementById('dataFim').value;
+            
+            if(!inicio || !fim) return alert("Selecione as datas!");
+
+            // Redireciona para a rota com os parâmetros
+            window.location.href = `/exportar-excel?dataInicio=${inicio}&dataFim=${fim}`;
+        }
+    </script>
+</body>
+</html>
