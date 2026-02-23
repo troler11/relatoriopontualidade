@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
 import path from 'path';
+import fs from 'fs';
 
 const app = express();
 const caminhosPossiveis = [
