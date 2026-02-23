@@ -6,108 +6,108 @@ import fs from 'fs';
 
 const app = express();
 
-const caminhosPossiveis = [
-    path.join(__dirname, '..', 'public'),
-    path.join(__dirname, 'public'),
-    path.join(process.cwd(), 'public')
-];
-const publicPath = caminhosPossiveis.find(p => fs.existsSync(p)) || caminhosPossiveis[0];
-
+// --- CONFIGURAÇÃO DE CAMINHOS ---
+const publicPath = path.resolve(__dirname, '..', 'public');
 app.use(express.static(publicPath));
-
-app.get('/', (req: Request, res: Response) => {
-    const indexPath = path.join(publicPath, 'index.html');
-    if (fs.existsSync(indexPath)) {
-        res.sendFile(indexPath);
-    } else {
-        res.status(404).send("Erro: index.html não encontrado.");
-    }
-});
 
 app.get('/exportar-excel', async (req: Request, res: Response) => {
     const { dataInicio, dataFim } = req.query;
-
-    const formatarData = (dStr: any) => {
-        const [ano, mes, dia] = dStr.toString().split('-');
-        return `${parseInt(dia)}/${parseInt(mes)}/${ano}`;
-    };
-
-    const dIn = dataInicio ? formatarData(dataInicio) : "23/2/2026";
-    const dFi = dataFim ? formatarData(dataFim) : dIn;
-
-    const apiUrl = `https://abmbus.com.br:8181/api/usuario/pesquisarelatorio?linhas=&empresas=3528872&dataInicial=${dIn}&dataFinal=${dFi}&periodo=&sentido=&agrupamentos=`;
+    const dIn = dataInicio ? dataInicio.toString().split('-').reverse().join('/') : "23/02/2026";
 
     try {
-        const response = await axios.get(apiUrl, {
-            headers: {
-                'Authorization': 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJtaW1vQGFibXByb3RlZ2UuY29tLmJyIiwiZXhwIjoxODcwOTkzNDM5fQ.aj4XA7WAMCpfJCGyLhWX1swG8fyLmxgBufpaJAZNeFecCp9HJbSy57FultLJs1i73axl00_tur-HFCjoZ07K9Q',
-                'Origin': 'https://abmbus.com.br',
-                'Referer': 'https://abmbus.com.br/'
-            }
+        const response = await axios.get(`https://abmbus.com.br:8181/api/usuario/pesquisarelatorio?linhas=&empresas=3528872&dataInicial=${dIn}&dataFinal=${dIn}&periodo=&sentido=&agrupamentos=`, {
+            headers: { 'Authorization': 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJtaW1vQGFibXByb3RlZ2UuY29tLmJyIiwiZXhwIjoxODcwOTkzNDM5fQ.aj4XA7WAMCpfJCGyLhWX1swG8fyLmxgBufpaJAZNeFecCp9HJbSy57FultLJs1i73axl00_tur-HFCjoZ07K9Q' }
         });
 
         const dados: any[] = response.data;
-        if (!Array.isArray(dados)) return res.status(404).send("Nenhum dado encontrado.");
-
         const workbook = new ExcelJS.Workbook();
 
         const criarAba = (nomeAba: string, filtro: string) => {
-            const listaFiltrada = dados.filter(i => i.sentido === filtro);
-            if (listaFiltrada.length === 0) return;
+            const lista = dados.filter(i => i.sentido === filtro);
+            if (lista.length === 0) return;
 
             const sheet = workbook.addWorksheet(nomeAba);
 
+            // 1. CONFIGURAÇÃO DE MARGENS E LAYOUT
+            sheet.pageSetup.margins = { left: 0.7, right: 0.7, top: 0.7, bottom: 0.7, header: 0.3, footer: 0.3 };
+            
+            // 2. CABEÇALHO COM LOGO E TÍTULO (Mesclagem de células)
+            sheet.mergeCells('A1:B4'); // Espaço para o Logo
+            sheet.mergeCells('C1:H2'); // Título do Relatório
+            sheet.mergeCells('C3:H4'); // Subtítulo (Data e Empresa)
+
+            const titulo = sheet.getCell('C1');
+            titulo.value = 'RELATÓRIO DE PONTUALIDADE E OPERAÇÃO';
+            titulo.font = { name: 'Arial', size: 16, bold: true };
+            titulo.alignment = { vertical: 'middle', horizontal: 'center' };
+
+            const subtitulo = sheet.getCell('C3');
+            subtitulo.value = `Viação Mimo - Período: ${dIn} | Sentido: ${filtro}`;
+            subtitulo.font = { name: 'Arial', size: 11 };
+            subtitulo.alignment = { vertical: 'middle', horizontal: 'center' };
+
+            // Inserir Logo (se o arquivo existir)
+            const logoPath = path.join(publicPath, 'logo.png');
+            if (fs.existsSync(logoPath)) {
+                const imageId = workbook.addImage({
+                    filename: logoPath,
+                    extension: 'png',
+                });
+                sheet.addImage(imageId, {
+                    tl: { col: 0, row: 0 },
+                    ext: { width: 120, height: 60 }
+                });
+            }
+
+            // 3. DEFINIÇÃO DAS COLUNAS (Inicia na Linha 6 para dar espaço ao topo)
+            const startRow = 6;
+            sheet.getRow(startRow).values = ['LINHA', 'PREFIXO', 'PLACA', 'HORÁRIO PREV.', 'HORÁRIO EXEC.', 'STATUS', 'MOTORISTA', 'PONTUALIDADE'];
+            
             sheet.columns = [
-                { header: 'LINHA', key: 'linha', width: 35 },
-                { header: 'DATA/HORA', key: 'data', width: 20 },
-                { header: 'VEÍCULO', key: 'veiculo', width: 15 },
-                { header: 'PLACA', key: 'placa', width: 12 },
-                { header: 'VEL. MÁX', key: 'vel', width: 12 },
-                { header: 'H.P.I PREVISTO', key: 'hpi', width: 18 },
-                { header: 'PASSOU P.I?', key: 'passou', width: 15 },
-                { header: 'MOTORISTA', key: 'moto', width: 35 }
+                { key: 'linha', width: 35 },
+                { key: 'veiculo', width: 12 },
+                { key: 'placa', width: 12 },
+                { key: 'previsto', width: 15 },
+                { key: 'executado', width: 15 },
+                { key: 'status', width: 15 },
+                { key: 'moto', width: 30 },
+                { key: 'atraso', width: 15 }
             ];
 
-            listaFiltrada.forEach(item => {
-                const pontos = item.pontoDeParadaRelatorio || [];
-                sheet.addRow({
+            // 4. INSERÇÃO DE DADOS E LÓGICA DE ATRASO
+            lista.forEach((item, index) => {
+                const row = sheet.addRow({
                     linha: item.linhaDescricao,
-                    data: item.dataHora,
                     veiculo: item.veiculo?.veiculo,
                     placa: item.veiculo?.placa,
-                    vel: item.velocidadeMaximaStr,
-                    hpi: pontos[0]?.horario || 'N/A',
-                    passou: pontos[0]?.passou ? 'SIM' : 'NÃO',
-                    moto: item.motorista || 'NÃO IDENTIFICADO'
+                    previsto: item.pontoDeParadaRelatorio[0]?.horario || '--:--',
+                    executado: item.dataHora.split(' ')[1], // Extrai apenas a hora
+                    status: item.status,
+                    moto: item.motorista || 'N/D',
+                    atraso: item.status === 'Atrasado' ? 'ATRASADO' : 'PONTUAL'
                 });
-            });
 
-            // Estilização com Tipagem Explícita para evitar erros de compilação
-            const headerRow = sheet.getRow(1);
-            headerRow.eachCell((cell: ExcelJS.Cell) => {
-                cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 12 };
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0047AB' } };
-                cell.alignment = { vertical: 'middle', horizontal: 'center' };
-            });
+                // Estilo Zebra e Bordas
+                row.eachCell((cell) => {
+                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                });
+                if (index % 2 === 0) row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F9F9F9' } };
 
-            sheet.eachRow((row: ExcelJS.Row, rowNumber: number) => {
-                if (rowNumber > 1) {
-                    row.eachCell((cell: ExcelJS.Cell) => {
-                        cell.border = {
-                            top: { style: 'thin' }, left: { style: 'thin' },
-                            bottom: { style: 'thin' }, right: { style: 'thin' }
-                        };
+                // DESTAQUE PARA ATRASADOS (Linha Vermelha)
+                if (item.status === 'Atrasado') {
+                    row.eachCell((cell) => {
+                        cell.font = { color: { argb: 'FF0000' }, bold: true };
+                        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEBEE' } }; // Fundo rosa claro
                     });
-                    
-                    if (rowNumber % 2 === 0) {
-                        row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F2F2F2' } };
-                    }
-
-                    const cellPassou = row.getCell(7);
-                    if (cellPassou.value === 'NÃO') {
-                        cellPassou.font = { color: { argb: 'FF0000' }, bold: true };
-                    }
                 }
+            });
+
+            // Estilo do Cabeçalho da Tabela
+            const header = sheet.getRow(startRow);
+            header.eachCell((cell) => {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0047AB' } };
+                cell.font = { color: { argb: 'FFFFFF' }, bold: true };
+                cell.alignment = { horizontal: 'center' };
             });
         };
 
@@ -115,14 +115,14 @@ app.get('/exportar-excel', async (req: Request, res: Response) => {
         criarAba('SAÍDAS', 'Saída');
 
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=Relatorio_Mimo.xlsx`);
+        res.setHeader('Content-Disposition', `attachment; filename=Relatorio_Mimo_Identico.xlsx`);
 
         await workbook.xlsx.write(res);
         res.end();
 
-    } catch (error: any) {
+    } catch (error) {
         res.status(500).send("Erro ao gerar relatório.");
     }
 });
 
-app.listen(80, () => console.log("🚀 Servidor da Viação Mimo rodando na porta 80"));
+app.listen(80, () => console.log("🚀 Sistema Mimo Online"));
