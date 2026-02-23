@@ -1,39 +1,40 @@
-# Estágio 1: Construção (Build)
+# Estágio 1: Build (Compilação do TypeScript)
 FROM node:20-slim AS builder
 
-# Define o diretório de trabalho
 WORKDIR /app
 
-# Copia os arquivos de dependências
+# Copia arquivos de configuração de dependências
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Instala todas as dependências (incluindo as de desenvolvimento para o build)
+# Instala todas as dependências
 RUN npm install
 
-# Copia o restante do código fonte
+# Copia o código fonte e a pasta public
 COPY . .
 
-# Transpila o TypeScript para JavaScript (gera a pasta /dist ou /build)
+# Converte TypeScript para JavaScript (gera a pasta dist)
 RUN npm run build
 
-# Estágio 2: Produção (Final)
+# Estágio 2: Produção
 FROM node:20-slim
 
 WORKDIR /app
 
-# Define a variável de ambiente para produção
+# Variável de ambiente para otimização do Node
 ENV NODE_ENV=production
 
-# Copia apenas os arquivos necessários do estágio de builder
+# Copia apenas o necessário do estágio de build
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
+# COPIA A PASTA PUBLIC PARA O CONTAINER FINAL (Essencial para o index.html)
+COPY --from=builder /app/public ./public
 
-# Instala apenas dependências de produção (reduz o tamanho da imagem)
+# Instala apenas dependências de produção
 RUN npm install --omit=dev
 
-# Expõe a porta que sua API usa (3000 conforme o código anterior)
-EXPOSE 3000
+# Expõe a porta 80 (conforme definido no seu server.ts)
+EXPOSE 80
 
-# Comando para iniciar a aplicação
+# Inicia o servidor
 CMD ["node", "dist/server.js"]
