@@ -4,11 +4,13 @@ import * as XLSX from 'xlsx';
 import path from 'path';
 
 const app = express();
-app.use(express.static(path.resolve(__dirname, '..', 'public')));
+const publicPath = path.resolve(__dirname, '..', 'public');
 
-// Se você quiser garantir que a rota principal SEMPRE abra o index:
-app.get('/', (req, res) => {
-    res.sendFile(path.resolve(__dirname, '..', 'public', 'index.html'));
+app.use(express.static(publicPath));
+
+// Rota raiz forçada para garantir que o index.html seja entregue
+app.get('/', (req: Request, res: Response) => {
+    res.sendFile(path.join(publicPath, 'index.html'));
 });
 
 const formatarDados = (lista: any[]) => {
