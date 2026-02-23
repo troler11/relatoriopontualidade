@@ -1,68 +1,46 @@
 import express, { Request, Response } from 'express';
 import axios from 'axios';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import path from 'path';
 import fs from 'fs';
 
 const app = express();
-const caminhosPossiveis = [
-    path.join(__dirname, '..', 'public'), // No Docker (sai de dist e vai para public)
-    path.join(__dirname, 'public'),       // Rodando via ts-node ou local
-    path.join(process.cwd(), 'public')    // Raiz do processo atual
-];
 
+// --- CONFIGURAÇÃO DE CAMINHOS ---
+const caminhosPossiveis = [
+    path.join(__dirname, '..', 'public'), // No Docker
+    path.join(__dirname, 'public'),       // Local
+    path.join(process.cwd(), 'public')    // Raiz
+];
 const publicPath = caminhosPossiveis.find(p => fs.existsSync(p)) || caminhosPossiveis[0];
 
-console.log(`[Viação Mimo] Servindo arquivos de: ${publicPath}`);
-
+console.log(`[Viação Mimo] Arquivos estáticos em: ${publicPath}`);
 app.use(express.static(publicPath));
 
+// --- ROTA PRINCIPAL (FRONTEND) ---
 app.get('/', (req: Request, res: Response) => {
     const indexPath = path.join(publicPath, 'index.html');
     if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
     } else {
-        res.status(404).send(`Erro: index.html não encontrado em ${publicPath}`);
+        res.status(404).send("Erro: index.html não encontrado.");
     }
 });
 
-const formatarDados = (lista: any[]) => {
-    return lista.map(item => {
-        const pontos = item.pontoDeParadaRelatorio || [];
-        const primeiroPonto = pontos.length > 0 ? pontos[0] : {};
-        const ultimoPonto = pontos.length > 0 ? pontos[pontos.length - 1] : {};
-
-        return {
-            "Linha": item.linhaDescricao,
-            "Data/Hora": item.dataHora || item.data,
-            "Veículo": item.veiculo?.veiculo || "N/A",
-            "Placa": item.veiculo?.placa || "N/A",
-            "Velocidade Maxima": item.velocidadeMaximaStr,
-            "H.P.I Previsto": primeiroPonto.horario || "N/A",
-            "Passou no ponto inicial?": primeiroPonto.passou ? "Sim" : "Não",
-            "H.P.F Previsto": ultimoPonto.horario || "N/A",
-            "Passou no ponto final?": ultimoPonto.passou ? "Sim" : "Não",
-            "Motorista": item.motorista || "Não Identificado",
-            "Sentido": item.sentido
-        };
-    });
-};
-
+// --- ROTA DE EXPORTAÇÃO (BACKEND) ---
 app.get('/exportar-excel', async (req: Request, res: Response) => {
-    // Captura as datas enviadas pelo frontend. Se não enviar, usa a data de hoje.
     const { dataInicio, dataFim } = req.query;
-    
-    // A API da ABM Bus usa o formato D/M/YYYY (ex: 19/2/2026)
-    // O HTML input type="date" envia YYYY-MM-DD, então precisamos converter:
-    const formatarDataParaAPI = (dataStr: any) => {
-        const [ano, mes, dia] = dataStr.toString().split('-');
+
+    // Tradução de data: YYYY-MM-DD (HTML) para D/M/YYYY (API)
+    const formatarData = (dStr: any) => {
+        const [ano, mes, dia] = dStr.toString().split('-');
         return `${parseInt(dia)}/${parseInt(mes)}/${ano}`;
     };
 
-    const dInicial = dataInicio ? formatarDataParaAPI(dataInicio) : "19/2/2026";
-    const dFinal = dataFim ? formatarDataParaAPI(dataFim) : dInicial;
+    const dIn = dataInicio ? formatarData(dataInicio) : "19/2/2026";
+    const dFi = dataFim ? formatarData(dataFim) : dIn;
 
-    const apiUrl = `https://abmbus.com.br:8181/api/usuario/pesquisarelatorio?linhas=&empresas=3528872&dataInicial=${dInicial}&dataFinal=${dFinal}&periodo=&sentido=&agrupamentos=`;
+    const apiUrl = `https://abmbus.com.br:8181/api/usuario/pesquisarelatorio?linhas=&empresas=3528872&dataInicial=${dIn}&dataFinal=${dFi}&periodo=&sentido=&agrupamentos=`;
 
     try {
         const response = await axios.get(apiUrl, {
@@ -74,24 +52,93 @@ app.get('/exportar-excel', async (req: Request, res: Response) => {
         });
 
         const dados: any[] = response.data;
-        if (!Array.isArray(dados)) return res.status(404).send("Dados não encontrados.");
+        if (!Array.isArray(dados)) return res.status(404).send("Nenhum dado encontrado.");
 
-        const entradas = formatarDados(dados.filter(item => item.sentido === 'Entrada'));
-        const saidas = formatarDados(dados.filter(item => item.sentido === 'Saída'));
+        const workbook = new ExcelJS.Workbook();
 
-        const workbook = XLSX.utils.book_new();
-        if (entradas.length > 0) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(entradas), "Entradas");
-        if (saidas.length > 0) XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(saidas), "Saídas");
+        // Função para criar aba estilizada
+        const criarAba = (nomeAba: string, filtro: string) => {
+            const listaFiltrada = dados.filter(i => i.sentido === filtro);
+            if (listaFiltrada.length === 0) return;
 
-        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+            const sheet = workbook.addWorksheet(nomeAba);
 
-        res.setHeader('Content-Disposition', `attachment; filename=Relatorio_Mimo_${dInicial.replace(/\//g, '-')}.xlsx`);
+            // Definição das Colunas e Larguras
+            sheet.columns = [
+                { header: 'LINHA', key: 'linha', width: 35 },
+                { header: 'DATA/HORA', key: 'data', width: 20 },
+                { header: 'VEÍCULO', key: 'veiculo', width: 15 },
+                { header: 'PLACA', key: 'placa', width: 12 },
+                { header: 'VEL. MÁX', key: 'vel', width: 12 },
+                { header: 'H.P.I PREVISTO', key: 'hpi', width: 18 },
+                { header: 'PASSOU P.I?', key: 'passou', width: 15 },
+                { header: 'MOTORISTA', key: 'moto', width: 35 }
+            ];
+
+            // Inserção dos Dados
+            listaFiltrada.forEach(item => {
+                const pontos = item.pontoDeParadaRelatorio || [];
+                sheet.addRow({
+                    linha: item.linhaDescricao,
+                    data: item.dataHora,
+                    veiculo: item.veiculo?.veiculo,
+                    placa: item.veiculo?.placa,
+                    vel: item.velocidadeMaximaStr,
+                    hpi: pontos[0]?.horario || 'N/A',
+                    passou: pontos[0]?.passou ? 'SIM' : 'NÃO',
+                    moto: item.motorista || 'NÃO IDENTIFICADO'
+                });
+            });
+
+            // --- ESTILIZAÇÃO DO LAYOUT ---
+            // 1. Estilo do Cabeçalho (Fundo Azul, Texto Branco, Negrito)
+            const headerRow = sheet.getRow(1);
+            headerRow.eachCell((cell) => {
+                cell.font = { bold: true, color: { argb: 'FFFFFF' }, size: 12 };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '0047AB' } };
+                cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                cell.border = { bottom: { style: 'medium' } };
+            });
+
+            // 2. Estilo das Linhas (Bordas e Zebra)
+            sheet.eachRow((row, rowNumber) => {
+                if (rowNumber > 1) {
+                    row.eachCell((cell) => {
+                        cell.border = {
+                            top: { style: 'thin' }, left: { style: 'thin' },
+                            bottom: { style: 'thin' }, right: { style: 'thin' }
+                        };
+                        cell.alignment = { vertical: 'middle', horizontal: 'left' };
+                    });
+                    
+                    // Cores alternadas (Zebra)
+                    if (rowNumber % 2 === 0) {
+                        row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'F2F2F2' } };
+                    }
+
+                    // Formatação Condicional: Se "NÃO" passou, pinta de vermelho
+                    const cellPassou = row.getCell(7);
+                    if (cellPassou.value === 'NÃO') {
+                        cellPassou.font = { color: { argb: 'FF0000' }, bold: true };
+                    }
+                }
+            });
+        };
+
+        criarAba('ENTRADAS', 'Entrada');
+        criarAba('SAÍDAS', 'Saída');
+
+        // Configuração de Resposta para Download
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        return res.send(buffer);
+        res.setHeader('Content-Disposition', `attachment; filename=Relatorio_Mimo_${dIn.replace(/\//g, '-')}.xlsx`);
+
+        await workbook.xlsx.write(res);
+        res.end();
 
     } catch (error: any) {
-        res.status(500).send("Erro ao processar relatório.");
+        console.error("Erro ABM:", error.message);
+        res.status(500).send("Erro ao gerar relatório.");
     }
 });
 
-app.listen(80, () => console.log("🚀 Servidor Mimo Online na porta 80"));
+app.listen(80, () => console.log("🚀 Servidor da Viação Mimo rodando na porta 80"));
