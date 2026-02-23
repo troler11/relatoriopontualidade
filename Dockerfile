@@ -12,11 +12,15 @@ FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Copia as dependências e o código compilado
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/public ./public
+# GARANTA QUE A PASTA PUBLIC ESTEJA NA RAIZ /app
+COPY --from=builder /app/public ./public 
 
 RUN npm install --omit=dev
 
-# O pulo do gato: Procurar o server.js recursivamente caso ele esteja em dist/src/server.js
-CMD ["sh", "-c", "node $(find dist -name server.js | head -n 1)"]
+EXPOSE 80
+
+# Comando para rodar (usando o caminho absoluto para não ter erro)
+CMD ["node", "dist/server.js"]
