@@ -4,13 +4,25 @@ import * as XLSX from 'xlsx';
 import path from 'path';
 
 const app = express();
-const publicPath = path.resolve(__dirname, '..', 'public');
+const caminhosPossiveis = [
+    path.join(__dirname, '..', 'public'), // No Docker (sai de dist e vai para public)
+    path.join(__dirname, 'public'),       // Rodando via ts-node ou local
+    path.join(process.cwd(), 'public')    // Raiz do processo atual
+];
+
+const publicPath = caminhosPossiveis.find(p => fs.existsSync(p)) || caminhosPossiveis[0];
+
+console.log(`[Viação Mimo] Servindo arquivos de: ${publicPath}`);
 
 app.use(express.static(publicPath));
 
-// Rota raiz forçada para garantir que o index.html seja entregue
 app.get('/', (req: Request, res: Response) => {
-    res.sendFile(path.join(publicPath, 'index.html'));
+    const indexPath = path.join(publicPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.status(404).send(`Erro: index.html não encontrado em ${publicPath}`);
+    }
 });
 
 const formatarDados = (lista: any[]) => {
